@@ -1,0 +1,120 @@
+---
+title: "LinearModelsChallenge"
+author: "Carson Archie"
+date: "2026-03-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#Load in packages
+library(tidyverse)
+library(lme4)
+library(emmeans)
+library(multcomp)
+library(multcompView)
+#load in data
+plant_emergence <- read.csv("PlantEmergence.csv")
+
+#Change to as factors
+plant_emergence$Treatment <- as.factor(plant_emergence$Treatment) 
+plant_emergence$DaysAfterPlanting <- as.factor(plant_emergence$DaysAfterPlanting)
+plant_emergence$Rep <- as.factor(plant_emergence$Rep)
+```
+
+```{r}
+#Basic linear models for emergence based on treatment and days after planting
+Treatment_lm <- lm(Emergence~Treatment, data = plant_emergence)
+Days_lm <- lm(Emergence~DaysAfterPlanting, data = plant_emergence)
+
+#get summary statistics of a lm 
+summary(Treatment_lm)
+summary(Days_lm)
+
+#Get anova
+anova(Treatment_lm)
+anova(Days_lm)
+
+#When assessing Treatment 2 we can see from the coefficent that Treatment 2 has the strongest relationship even though the values are negative for Estimate Std. error and the Pr value is identicle. We can also see that they both have *** to identify significance. 
+
+```
+
+```{r}
+lm.growth <- lm(Emergence~Treatment, data = plant_emergence)
+summary(lm.growth)
+
+#Run anova
+anova(lm.growth)
+
+#Summary of data
+summary(aov(Emergence~Treatment, data = plant_emergence))
+
+
+lsmeans <- emmeans(lm.growth, ~ Treatment) # estimate lsmeans of variety within siteXyear
+Results_lsmeans <- cld(lsmeans, alpha = 0.05, reversed = TRUE, details = TRUE) # contrast with Tukey ajustment by default. 
+Results_lsmeans
+```
+
+
+
+```{r}
+# Calculate least square means for Treatment
+emmeans_treatment <- emmeans(Treatment_lm, specs = ~ Treatment)
+
+# Perform pairwise comparisons using Tukey adjustment and generate Compact Letter Display
+cld_result <- cld(emmeans_treatment, adjust = "tukey", Letters = letters, alpha = 0.05)
+
+# View the results
+print(cld_result)
+
+#The results primarily show that there is a statistically significant difference between 3 treatments shoing A, B, and C and the rest of the treatments are not significantly different from b or c but they are different form A. 
+```
+
+
+
+```{r}
+plot_cldbars_onefactor <- function(lm_model, factor) {
+data <- lm_model$model
+variables <- colnames(lm_model$model)
+dependent_var <- variables[1]
+independent_var <- variables[2:length(variables)]
+lsmeans <- emmeans(lm_model, as.formula(paste("~", factor))) # estimate
+lsmeans
+Results_lsmeans <- cld(lsmeans, alpha = 0.05, reversed = TRUE, details =
+TRUE, Letters = letters) # contrast with Tukey adjustment by default.
+# Extracting the letters for the bars
+sig.diff.letters <- data.frame(Results_lsmeans$emmeans[,1],
+str_trim(Results_lsmeans$emmeans[,7]))
+colnames(sig.diff.letters) <- c(factor, "Letters")
+# for plotting with letters from significance test
+ave_stand2 <- lm_model$model %>%
+group_by(!!sym(factor)) %>%
+dplyr::summarize(
+ave.emerge = mean(.data[[dependent_var]], na.rm = TRUE),
+se = sd(.data[[dependent_var]]) / sqrt(n())
+) %>%
+left_join(sig.diff.letters, by = factor) %>%
+mutate(letter_position = ave.emerge + 10 * se)
+plot <- ggplot(data = plant_emergence, aes(x = !! sym(factor), y = !! sym(dependent_var))) +
+stat_summary(fun = mean, geom = "bar") +
+stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.5) +
+ylab("Number of emerged plants") +
+geom_jitter(width = 0.02, alpha = 0.5) +
+geom_text(data = ave_stand2, aes(label = Letters, y = letter_position),
+size = 5) +
+xlab(as.character(factor)) +
+theme_classic()
+return(plot)
+}
+
+# Generate the CLD bar plot for Treatment
+treatment_plot <- plot_cldbars_onefactor(lm_model = Treatment_lm, factor = "Treatment")
+
+# Display the plot
+print(treatment_plot)
+```
+
