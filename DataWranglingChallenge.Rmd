@@ -1,0 +1,92 @@
+---
+title: "Data Wrangling Challenge"
+author: "Carson Archie"
+date: "2026-03-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, load data & packages}
+library(tidyverse)
+DiversityData <- read.csv("DiversityData.csv")
+Metadata <- read.csv("Metadata.csv")
+```
+
+I think there is an issue with the Diverisity Data's columns but it has loaded in and I just combines them to continue and I seemed to get similar results. 
+```{r, Joining}
+#Create a new column which combines Crop
+alpha <- left_join(DiversityData, Metadata)
+# The Diversity data set doesn't have a column called Crop
+#Creave Shannon
+alpha_even <- alpha %>%
+  mutate(Pielous = shannon / log(richness))
+```
+Summarize points
+```{r, Summary}
+
+# Summarize by Crop and Time_Point
+alpha_average <- alpha_even %>%
+  group_by(Crop, Time_Point) %>%
+  summarise(
+    mean.Pielous = mean(Pielous, na.rm = TRUE),
+    count = n(),
+    sd.Pielous = sd(Pielous, na.rm = TRUE),
+    se.Pielous = sd.Pielous / sqrt(count)
+  ) %>%
+  mutate(std.err = sd.Pielous/sqrt(count))
+
+```
+Now we will compare columns. 
+```{r, Calculate differences in columns}
+
+# Summarize by Crop and Time_Point
+alpha_average2 <- alpha_average %>%
+  select(Time_Point, Crop, mean.Pielous) %>%
+  pivot_wider(
+    names_from = Crop, 
+    values_from = mean.Pielous) %>%
+  mutate(
+    diff.cotton.even = Cotton - Soil,   
+    diff.soybean.even = Soybean - Soil)
+
+```
+
+My plot looks the same but I'm not quite sure how it got inverted. 
+```{r, graphing}
+
+
+alpha_average2 <- alpha_average %>%
+  select(Time_Point, Crop, mean.Pielous) %>%  
+  pivot_wider(
+    names_from = Crop, 
+    values_from = mean.Pielous) %>%
+  mutate(
+    diff.cotton.even = Cotton - Soil,   
+    diff.soybean.even = Soybean - Soil
+  )
+
+plot_data <- alpha_average2 %>%
+  select(Time_Point, diff.cotton.even, diff.soybean.even) %>%
+  pivot_longer(
+    cols = c(diff.cotton.even, diff.soybean.even),
+    names_to = "diff",
+    values_to = "values"
+  ) 
+
+ggplot(plot_data, aes(x = Time_Point, y = values, colour = diff)) +
+  geom_line() +
+  labs(
+    title = "Difference in Evenness Over Time",
+    x = "Time Point",
+    y = "Difference in Evenness",
+    colour = "Crop Comparison"
+  ) +
+  theme_minimal()
+
+
+```
+

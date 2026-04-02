@@ -1,0 +1,124 @@
+---
+title: "Loops/FunctionChallenge"
+author: "Carson Archie"
+date: "2026-03-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. The primary goal or point of writing your own functions and iterations  in R is too be able to have control over executing math equations and graphs without having human errors. It allows for precise and consistent replication across large data sets while ensuring that the same equation or process in being ran every time. 
+
+2. 2.1 To write a function in R, it is good practice to store your designated function as an object using the <- opperation. Following this you will write the function() base opperator to build your desried function. You will classify what you are trying to do within the () brackets followed by {} brackets to write your mathematical equation or desired operation. Within the {} brackets you will need to add output() to determine the 
+   2.2 When writing a for loop in R, you will need to use the () brackets to assign the amount of iterator i that you want in your dataset, columns to run your function on. You will then write the {} brackets to write the equation/model you want to run on your iterator. It is important to also write code to store the data retrieved as it will not automatically be displayed with for loops.
+
+3. 
+```{r, load in data and packages}
+#Load in packages
+library(tidyverse)
+# Read in the CSV file
+#Im not sure why but even though my working directory is set to Git it doesn't appear to want to read in Cities unless I do a full file path read.
+cities_data <- read.csv("Cities.csv")
+head(cities_data)
+```
+
+
+```{r, function}
+# Define the function
+haversine_dist <- function(lat1, lon1, lat2, lon2) {
+# convert to radians
+  rad.lat1 <- lat1 * pi/180
+  rad.lon1 <- lon1 * pi/180
+  rad.lat2 <- lat2 * pi/180
+  rad.lon2 <- lon2 * pi/180
+  
+# Haversine formula
+  delta_lat <- rad.lat2 - rad.lat1
+  delta_lon <- rad.lon2 - rad.lon1
+  a <- sin(delta_lat / 2)^2 + cos(rad.lat1) * cos(rad.lat2) * sin(delta_lon / 2)^2
+  c <- 2 * asin(sqrt(a))
+  
+# Earth's radius in meters (standard WGS84), converted to km later
+  earth_radius <- 6378137 
+  
+# Calculate the distance of earths radius in kilometers
+  distance_km <- (earth_radius * c)/1000
+  
+  return(distance_km)
+}
+```
+
+
+```{r, nyc/auburn}
+
+# Subset the rows for New York and Auburn
+nyc_row <- cities_data[cities_data$city == "New York", ]
+auburn_row <- cities_data[cities_data$city == "Auburn", ]
+
+# Extract coordinates
+lat_nyc <- nyc_row$lat
+long_nyc <- nyc_row$long
+lat_aub <- auburn_row$lat
+long_aub <- auburn_row$long
+
+# Pass values into function
+nyc_distance <- haversine_dist(lat1 = lat_aub, lon1 = long_aub, 
+                               lat2 = lat_nyc, lon2 = long_nyc)
+
+# Print result
+print(nyc_distance)
+```
+
+
+```{r, all cities}
+# Get Auburn coordinates using column names
+auburn_row <- cities_data[cities_data$city == "Auburn", ]
+auburn_lat <- auburn_row$lat
+auburn_long <- auburn_row$long
+
+# Initialize vector for storage
+all_distances <- numeric(nrow(cities_data))
+
+# Run Loop
+for (i in 1:nrow(cities_data)) {
+  current_lat <- cities_data$lat[i]
+  current_long <- cities_data$long[i]
+  dist <- haversine_dist(lat1 = auburn_lat, lon1 = auburn_long,
+                         lat2 = current_lat, lon2 = current_long)
+  all_distances[i] <- dist
+  print(dist)
+}
+```
+
+
+```{r, all cities vector transformation}
+# Modify loop to append rows to a dataframe
+# Create a null object to store the final results
+auburn_distances_df <- NULL
+# Get Auburn coordinates once
+auburn_row <- cities_data[cities_data$city == "Auburn", ]
+auburn_lat <- auburn_row$lat
+auburn_long <- auburn_row$long
+
+# Run the For Loop
+for (i in seq_along(cities_data$city)) {
+  current_city_name <- cities_data$city[i]
+  current_lat <- cities_data$lat[i]
+  current_long <- cities_data$long[i]
+  dist <- haversine_dist(lat1 = auburn_lat, lon1 = auburn_long,
+                         lat2 = current_lat, lon2 = current_long)
+  city_row_i <- data.frame(
+    City1 = current_city_name,
+    City2 = "Auburn",
+    Distance_km = dist,
+    stringsAsFactors = FALSE
+  )
+#Append new data frame
+  auburn_distances_df <- rbind.data.frame(auburn_distances_df, city_row_i)
+}
+
+# Show fist 6 rows
+head(auburn_distances_df, 6)
+```
