@@ -1,0 +1,133 @@
+---
+title: "Markdown Challenge Carson"
+author: "Carson Archie"
+date: "2026-02-19"
+output: word_document:
+    md_document:
+    variant: gfm
+  html_document:
+     toc: true
+    toc_float: true
+  pdf_document:
+  word_document:
+
+---
+
+# Contents
+
+### Coding Challenge 4
+- Question 1
+- Question 2
+- Question 3
+- Question 4
+- Question 5
+- Question 6
+
+# Coding Challenge 4
+
+## Question 1
+
+- a. A YAML header is a block of coded data at the top of an R Markdown document with the documents title, author, date, and output type. 
+- b. A pull request is when you pull a copy or "branched" version of your code in GITHub to edit without breaking your existing code and running it on your own computer. 
+- c. Literate programing is when a data scientists creates a document with a tool like R Markdown to merge dictated notes, code chunks and code output into one file for viewing. 
+
+## Question 2
+
+Load in the library you will need.
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+```
+Colorblind Pallet Needed
+```{r}
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+### Question 2a - clickable link to manuscript where data are published 
+
+- Noel, Z.A., Roze, L.V., Breunig, M., Trail, F. 2022. Endophytic fungi promising biocontrol agent to protect wheat from Fusarium graminearum head blight. Plant Disease. 
+https://doi.org/10.1094/PDIS-06-21-1253-RE
+
+- The following github repository is associated with this paper: 
+https://github.com/noelzach/EndophyteBiocontrol
+
+### Question 2b - Read in the data using a relative file path
+```{r}
+DON_data <- read.csv("/Users/carsonarchie/Desktop/MycotoxinData (1).csv", na.strings = "na") 
+```
+
+### Question 2c - 
+
+```{r}
+DON_plot <- ggplot(DON_data, aes(x = Treatment, y = DON, fill = Cultivar)) +
+  geom_boxplot(outliers = T, outlier.shape = 15) + 
+  geom_point(position = position_jitterdodge(), shape = 21, alpha = 0.6) + 
+  ylab("DON(ppm)") + 
+  xlab("") + 
+  geom_jitter(pch = 21, position = position_jitterdodge(), color = "black", alpha = 0.6) +
+  scale_fill_manual(values = c(cbbPalette[[3]], cbbPalette[[4]])) +
+  theme_classic() +
+  facet_wrap(~Cultivar)
+DON_plot
+
+
+
+```
+##DON figure
+```{r}
+ stats_donplot <- DON_plot + geom_pwc(aes(group = Treatment), method = "t-test", label = "{p.adj.format}{p.adj.signif}", p.adjust.methods)
+```
+
+```{r}
+DON_15 <- ggplot(DON_data, aes(x = Treatment, y = X15ADON, fill = Cultivar)) +
+  geom_boxplot(outliers = F) + 
+  geom_point(position = position_jitterdodge(), shape = 21, alpha = 0.6) + 
+  ylab("DON(ppm)") + 
+  xlab("") + 
+  geom_jitter(pch = 21, position = position_jitterdodge(), color = "black", alpha = 0.6) +
+  scale_fill_manual(values = c(cbbPalette[[3]], cbbPalette[[4]])) +
+  theme_classic() +
+  facet_wrap(~Cultivar)
+DON_15
+```
+
+```{r}
+ stats_DON_15 <- DON_15 + geom_pwc(aes(group = Treatment), method = "t-test", label = "{p.adj.format}{p.adj.signif}", p.adjust.methods)
+```
+
+```{r}
+seedmass <- ggplot(DON_data, aes(x = Treatment, y = MassperSeed_mg, fill = Cultivar)) +
+  geom_boxplot(outliers = F) + 
+  geom_point(position = position_jitterdodge(), shape = 21, alpha = 0.6) + 
+  ylab("DON(ppm)") + 
+  xlab("") + 
+  geom_jitter(pch = 21, position = position_jitterdodge(), color = "black", alpha = 0.6) +
+  scale_fill_manual(values = c(cbbPalette[[3]], cbbPalette[[4]])) +
+  theme_classic() +
+  facet_wrap(~Cultivar)
+seedmass
+```
+
+```{r}
+ stats_seedmass <- seedmass + geom_pwc(aes(group = Treatment), method = "t-test", label = "{p.adj.format}{p.adj.signif}", p.adjust.methods)
+```
+
+```{r}
+ggarrange(stats_donplot, stats_DON_15, stats_seedmass, labels = "auto", ncol = 3, nrow = 1, common.legend = TRUE) 
+```
+## Question 3
+The Knit process is working but it is still not allowing me to puch this document to my github repostiory. 
+
+## Question 4
+I am going to The main office for IT because my current repository link isn't pushing and the college of Agricultures IT department didn't know what to do. 
+
+
+## Question 5
+Hopefully I will get the link set tomorrow I have an appointment with the IT department in the morning so I will send an email when my repository is updated. I feel confident with the knit functions and README file formatting but my computer is being complicated. 
+
+
+## Question 6
+```{r}
+
+```
