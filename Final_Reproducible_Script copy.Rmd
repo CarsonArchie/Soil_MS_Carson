@@ -1,0 +1,423 @@
+---
+title: "Reproducible Final Project"
+author: "Carson Archie"
+date: "2026-04-23"
+output: html_document
+---
+
+Below are my graphs and data that I have generated for my final project.
+This is the link to my GitHub Repository: https://github.com/CarsonArchie/Soil_MS_Carson.git 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First we need to install and call on all of the packages we need along with the CSV's of load and ppm concentration data.
+```{r packages and data}
+#Install the necessary packages for running tests
+
+#Load required packages 
+library(pheatmap)
+library(tidyverse)
+library(dplyr)
+library(ggcorrplot)
+library(ggplot2)
+library(lme4)
+library(emmeans)
+library(multcompView)
+library(ggpmisc)
+library(GGally)
+library(lmodel2)
+theme_set(theme_bw())
+
+#Load in the required data from the working directory pulled from GitHub
+load_raw_data <- read.csv("STP_LOAD_RAW(Sheet1).csv")
+ppm_raw_data <- read.csv("STP_PPM_RAW(Sheet1).csv")
+```
+
+
+Below is a pairwise correlation plot with assigned values depending on the negative or positive corrlation between element species. 
+```{r, correlation plot}
+#Filter and order data for columns that will be analyzed
+filter_data <- load_raw_data %>% 
+  dplyr::select(Runoff_Vol:TSS_L)
+#Keep only the numeric columns
+filter_data <- filter_data %>% 
+  dplyr::select(where(is.numeric))
+#Compute correlation matrix to handle NAs properly
+corr_matrix <- cor(filter_data, use = "pairwise.complete.obs")
+if(any(is.na(corr_matrix))) {
+  warning("Correlation matrix contains NAs. Consider removing columns with insufficient data.")
+}
+#Generate a plot using the correlation matrix
+Correlation_Plot <- ggcorrplot(corr_matrix, 
+                 hc.order = TRUE, 
+                 type = "lower",
+                 outline.col = "white",
+                 ggtheme = theme_gray, 
+                 colors = c("#6D9EC1", "white", "#E46726"), 
+                 lab = TRUE,
+                 title = "Runoff and Leachate Species Correlation")
+print(Correlation_Plot)
+
+```
+
+
+This is a heat map which can show visual patterns of how runoff and leachate species interact and can have correlation. 
+```{r, heatmap}
+
+#Select numeric columns from 8 to 21 which contain all element species and TSS
+numeric_cols <- names(load_raw_data)[8:21]
+#Filter to keep only truly numeric columns (safety check)
+numeric_cols <- numeric_cols[sapply(load_raw_data[numeric_cols], is.numeric)]
+#Check if we have enough columns 
+if (length(numeric_cols) < 2) {
+  stop("Not enough numeric columns found in indices 8:21 to compute correlation.")
+}
+cat("Using columns for correlation:", paste(numeric_cols, collapse = ", "), "\n")
+#Run a new pairwise correlation matrix
+M <- cor(load_raw_data[, numeric_cols], use = "pairwise.complete.obs")
+#Check for NA/NaN in correlation matrix
+if (any(is.na(M))) {
+  warning("Correlation matrix contains NAs. Some columns may have insufficient data.")
+}
+#Plot with Heat Map
+#Save as a file(for some reason it wouldn't present if I didn't save it in a png)
+pheatmap(M,
+         color = colorRampPalette(c("#E69F00", "white", "#0072B2"))(100),
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         fontsize = 9,
+         fontsize_row = 8,
+         fontsize_col = 8,
+         main = "STP Load Data Correlations",
+         filename = "STP_Correlation_Heatmap.png",
+         width = 12,
+         height = 10,
+         dpi = 300)
+cat("Heatmap saved to STP_Correlation_Heatmap.png\n")
+#Display in RStudio Plot
+pheatmap(M,
+         color = colorRampPalette(c("#E69F00", "white", "#0072B2"))(100),
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         fontsize = 10,
+         main = "STP Load Data Correlations")
+```
+
+
+This gallery plot allows us to split correlations based on soil test phosphorus levels to get R^2 values and linear models along with concentration data to show the distribution and trends between STP and element species interations. 
+```{r, gallery plots}
+#Build out the upper function with equations to get your R^2 and regression equation
+upperfun <- function(data, mapping){
+  ggplot(data = data, mapping = mapping) +
+    geom_blank() +
+    stat_ma_eq(use_label(c("eq", "R2")),
+               vstep = 0.15, 
+               size = 2.7,
+               formula = y ~ x)
+}
+
+#Build out the lower function ma lines using lmodel2 to get your correlations
+lowerfun <- function(data, mapping){
+  ggplot(data = data, mapping = mapping) +
+    geom_point(alpha = 0.4) +
+    ggpmisc::stat_ma_line(show.legend =  F,
+                          se = FALSE, 
+                          method = "lmodel2:SMA")
+}
+
+#The diagonal function will show the distribution of species to 
+diagfun <- function(data, mapping){
+  ggplot(data = data, mapping = mapping) +
+    geom_density(alpha = 0.33)
+}
+gallery_plot <- ggpairs(data = load_raw_data,
+        columns = 8:21,
+        aes(colour = Soil_P_Level_ppm, 
+            fill = Soil_P_Level_ppm, 
+            grp.label = abbreviate(Soil_P_Level_ppm)),
+        legend = 1,
+        upper = list(continuous = wrap(upperfun)),
+        lower = list(continuous = wrap(lowerfun)),
+        diag = list(continuous = wrap(diagfun)),
+        labeller = as_labeller(function(x) {gsub("\\.", " ", x)}),
+        progress = FALSE) +
+  theme_bw(base_size = 9) +
+  theme(panel.grid = element_blank())
+gallery_plot
+```
+
+
+This is a summaries average version of the data from the load CSV which allows us to see trends in figues such as boxplots or line plots. 
+```{r, create a mean summary load data table with columns for graphs}
+summarized_load_mean <- load_raw_data %>%
+  group_by(R_CSV_Label) %>%
+  summarise(
+#Keep specific non-numeric columns 
+    Date = first(Date),  
+    P_Rate_Kg.Ha = first(P_Rate_Kg.Ha),
+    Replication = first(Replication),
+    Soil_P_Level_ppm = first(Soil_P_Level_ppm),
+    Label_ID = first(Label_ID),
+    R_Group_ID = first(R_Group_ID),
+    R_CSV_Label = first(R_CSV_Label),
+#Calculate stats for numeric columns
+    across(
+      .cols = where(is.numeric), 
+      .fns = list(
+        mean = ~mean(.x, na.rm = TRUE),
+        sd = ~sd(.x, na.rm = TRUE),
+        se = ~sd(.x, na.rm = TRUE) / sqrt(sum(!is.na(.x)))
+      ),
+      .names = "{col}_{fn}"
+    ),
+    .groups = "drop"
+  )
+
+```
+
+
+We have repeated this step for the ppm CSV. 
+```{r, create a mean summary ppm data table with columns for graphs}
+summarized_ppm <- ppm_raw_data %>%
+  group_by(R_CSV_Label) %>%
+  summarise(
+#Keep specific non-numeric columns 
+    Date = first(Date),  
+    P_Rate_Kg.Ha = first(P_Rate_Kg.Ha),
+    Replication = first(Replication),
+    Soil_P_Level_ppm = first(Soil_P_Level_ppm),
+    Label_ID = first(Label_ID),
+    R_Group_ID = first(R_Group_ID),
+    R_CSV_Label = first(R_CSV_Label),
+#Calculate stats for numeric columns
+    across(
+      .cols = where(is.numeric), 
+      .fns = list(
+        mean = ~mean(.x, na.rm = TRUE),
+        sd = ~sd(.x, na.rm = TRUE),
+        se = ~sd(.x, na.rm = TRUE) / sqrt(sum(!is.na(.x)))
+      ),
+      .names = "{col}_{fn}"
+    ),
+    .groups = "drop"
+  )
+
+
+```
+
+
+
+This is the coded function that creates stacked boxplots with color blind friendly display across all element species and faceted based on soil test phosphorus values. 
+```{r stacked bar chart colorblind}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+#Define custom colors
+cbbPalette <- c( "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+#Reorder data levels for dates to make since
+summarized_load_mean$Date <- factor(summarized_load_mean$Date, 
+                                    levels = c("4/8/2025", "4/15/2025", "4/22/2025", "4/29/2025"))
+generate_correlation_plots <- function(data, 
+                                       x_var = "P_Rate_Kg.Ha", 
+                                       y_vars_to_plot = NULL, 
+                                       fill_var = "Date", 
+                                       facet_var = "Soil_P_Level_ppm",
+                                       plot_type = "bar", 
+                                       fixed_yscale = TRUE,  
+                                       output_prefix = "Plot") {
+#Check Y variables if not provided
+  if (is.null(y_vars_to_plot)) {
+    exclude_cols <- c(x_var, fill_var, facet_var, "P_Rate_Kg.Ha_mean", "Replication_mean", "Label_ID_mean", "R_Group_ID_mean")
+    all_nums <- names(data)[sapply(data, is.numeric)]
+    y_vars_to_plot <- all_nums[grepl("_mean$", all_nums)]
+    y_vars_to_plot <- setdiff(y_vars_to_plot, exclude_cols)
+  }
+  if (length(y_vars_to_plot) == 0) {
+    stop("No numeric columns found to plot on the Y-axis.")
+  }
+  cat("Generating plots for", length(y_vars_to_plot), "variables.\n")
+  plot_list <- list()
+#Loop through each Y variable
+  for (y_col in y_vars_to_plot) {
+    nice_name <- gsub("_mean$", "", y_col)
+    nice_name <- gsub("_", " ", nice_name)
+    nice_name <- gsub("\\.", " ", nice_name)
+  
+    plot_data <- data
+    if (plot_type == "bar") {
+      grouping_vars <- c(x_var, fill_var, facet_var)
+      grouping_vars <- intersect(grouping_vars, names(data))
+      plot_data <- data %>%
+        group_by(across(all_of(grouping_vars))) %>%
+        summarise(y_val = mean(.data[[y_col]], na.rm = TRUE), .groups = "drop")
+      geom_layer <- geom_col(position = "stack", width = 10, color = "black")
+      
+    } else {
+      geom_layer <- geom_point(size = 3, alpha = 0.8, shape = 21, color = "black") +
+                    geom_smooth(method = "lm", se = TRUE, linetype = "dashed", color = "gray40")
+    }
+#Calculate global Y max if using fixed scale
+    y_limit <- NULL
+    if (fixed_yscale && plot_type == "bar") {
+      y_limit <- max(plot_data$y_val, na.rm = TRUE) * 1.1  
+    }
+#Determine Y column name based on plot type
+    y_col_name <- ifelse(plot_type == "bar", "y_val", y_col)
+#Build Plot
+    p <- ggplot(data = plot_data, aes(x = .data[[x_var]], 
+                                      y = .data[[y_col_name]], 
+                                      fill = .data[[fill_var]])) +
+      geom_layer +
+#Add logic for scales
+      facet_wrap(as.formula(paste("~", facet_var)), scales = ifelse(fixed_yscale, "fixed", "free_y")) + 
+#Custom Colors
+      scale_fill_manual(values = cbbPalette) + 
+      labs(
+        title = paste(ifelse(plot_type=="bar", "Stacked Bar:", "Correlation:"), nice_name, "based on P Rate"),
+        x = "P Rate (Kg/Ha)",
+        y = paste(ifelse(plot_type=="bar", "Mean", ""), nice_name, "Kg/Ha"),
+        fill = "Date"
+      ) +
+      theme_minimal(base_size = 14) +
+      theme(
+        legend.position = "bottom",
+        strip.text = element_text(face = "bold"),
+        panel.grid.minor = element_blank()
+      )
+    
+    plot_list[[y_col]] <- p
+  }
+  
+  return(plot_list)
+}
+#Generate Stacked Bar Plots
+my_bar_plots <- generate_correlation_plots(
+  data = summarized_load_mean, 
+  plot_type = "bar"
+)
+#View all plots
+print(my_bar_plots)
+# Save all plots
+for (name in names(my_bar_plots)) {
+  filename <- paste0(name, "_StackedBar.png")
+  ggsave(filename, plot = my_bar_plots[[name]], width = 30, height = 6, dpi = 300)
+  cat("Saved:", filename, "\n")
+}
+```
+
+
+What is different regarding the ppm line plots is it allows for us to look as specific sample and test irregularities displayed in concentration beforw we move onto load data. This allows us to understand why there might be a low ppm, but a high delution due to lots of rainfall or vice versa. 
+```{r line plots}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Define custom color palette
+cbbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#000000") 
+
+# Reorder data levels for dates
+if(exists("summarized_ppm")) {
+  summarized_ppm$Date <- factor(summarized_ppm$Date, 
+                                levels = c("4/8/2025", "4/15/2025", "4/22/2025", "4/29/2025"))
+}
+generate_correlation_plots <- function(data, 
+                                       y_vars_to_plot = NULL, 
+                                       x_var = "Date",          
+                                       group_var = "P_Rate_Kg.Ha", 
+                                       facet_var = "Soil_P_Level_ppm",
+                                       plot_type = "regression", 
+                                       fixed_yscale = FALSE,     
+                                       output_prefix = "Plot") {
+  
+#Auto check Y variables if not provided
+  if (is.null(y_vars_to_plot)) {
+    exclude_cols <- c(x_var, group_var, facet_var, "P_Rate_Kg.Ha_mean","Replication_mean", "Label_ID_mean", "R_Group_ID_mean")
+    all_nums <- names(data)[sapply(data, is.numeric)]
+    y_vars_to_plot <- all_nums[grepl("_mean$", all_nums)]
+    y_vars_to_plot <- setdiff(y_vars_to_plot, exclude_cols)
+  }
+  
+  if (length(y_vars_to_plot) == 0) {
+    stop("No numeric columns found to plot on the Y-axis.")
+  }
+  cat("Generating plots for", length(y_vars_to_plot), "variables.\n")
+  plot_list <- list()
+#Loop over all applicable Y variables
+  for (y_col in y_vars_to_plot) {
+    nice_name <- gsub("_mean$", "", y_col)
+    nice_name <- gsub("_", " ", nice_name)
+    nice_name <- gsub("\\.", " ", nice_name)
+#Convert the Group Variable to Factor
+    plot_data <- data %>%
+      mutate(
+        .group_factor = as.factor(.data[[group_var]])
+      )
+    
+#Calculate Y for a fixed scale
+    y_limit <- NULL
+    if (fixed_yscale) {
+      y_limit <- max(plot_data[[y_col]], na.rm = TRUE) * 1.1}
+    p <- ggplot(data = plot_data, 
+                aes(x = .data[[x_var]], 
+                    y = .data[[y_col]])) +
+#Line Layer
+      geom_line(aes(group = .group_factor, color = .group_factor), 
+                linewidth = 0.8, alpha = 0.6) +
+#Point Layer
+      geom_point(aes(shape = .group_factor, color = .group_factor), 
+                 size = 3, alpha = 0.9) + 
+#Facet Layer
+      facet_wrap(as.formula(paste("~", facet_var)), scales = ifelse(fixed_yscale, "fixed", "free_y")) +
+#Scales
+      scale_color_manual(values = cbbPalette, name = "P Rate (Kg/Ha)") +
+      scale_shape_manual(values = c(16, 17, 15, 3, 4, 8, 9, 10), name = "P Rate (Kg/Ha)") +
+      scale_fill_manual(values = cbbPalette, guide = "none") + 
+#Labels
+      labs(
+        title = paste("Trend:", nice_name, "over Time"),
+        subtitle = paste("Faceted by", facet_var),
+        x = "Date",
+        y = paste(nice_name, "(Mean)"),
+        color = "P Rate\n(Kg/Ha)",
+        shape = "P Rate\n(Kg/Ha)"
+      ) +
+      
+#Theme
+      theme_minimal(base_size = 14) +
+      theme(
+        legend.position = "bottom",
+        strip.text = element_text(face = "bold"),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1)
+      )
+#Apply Y limit if calculated
+    if (!is.null(y_limit)) {
+      p <- p + ylim(0, y_limit)
+    }
+    
+    plot_list[[y_col]] <- p
+  }
+  
+  return(plot_list)
+}
+#Generate Plots
+my_reg_plots <- generate_correlation_plots(
+  data = summarized_ppm, 
+  plot_type = "regression",
+  fixed_yscale = TRUE
+)
+#View all plots
+if(length(my_reg_plots) > 0) {
+  print(my_reg_plots)
+}
+#Save all plots
+for (name in names(my_reg_plots)) {
+  filename <- paste0(name, "_TimeTrend.png")
+  ggsave(filename, plot = my_reg_plots[[name]], width = 12, height = 8, dpi = 300)
+  cat("Saved:", filename, "\n")
+}
+```
+
